@@ -1,4 +1,7 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using Chinook.Models;
+@using Chinook.Repository;
+@using System.Security.Claims;
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">Chinook</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
@@ -14,22 +17,77 @@
                 <span class="oi oi-home" aria-hidden="true"></span>Home
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="playlist/1">
-                <i class="bi bi-music-note-list me-3" style="font-size: 1.25em"></i>My favorite tracks
-            </NavLink>
-        </div>
 
+        <div class="nav-item px-3">
+
+            @if (playLists != null)
+            {
+                foreach (Playlist x in playLists)
+                {
+                    var url = "playlist/" + x.PlaylistId;
+
+                    <NavLink class="nav-link" href=@url>
+                        <i class="bi bi-music-note-list me-3" style="font-size: 1.25em">@x.Name</i>
+                    </NavLink>
+
+                }
+            }
+
+        </div>
     </nav>
 </div>
 
 @code {
     private bool collapseNavMenu = true;
+    private IEnumerable<Playlist> playLists;
+    [CascadingParameter] private Task<AuthenticationState> authenticationState { get; set; }
+    [Inject] private IplayListRepo _playList { get; set; }
+    [Inject] Chinook.Repository.IUserPlaylistRepo userPlaylistRepo { get; set; }
 
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uid = await GetUserId();
+        if (uid != null)
+        {
+            //2. Favorite / unfavorite tracks. An automatic playlist should be created named "My favorite tracks"
+
+            if (!userPlaylistRepo.ListAll()
+            .Any(e => e.UserId == uid && e.PlaylistId == _playList.GetByName("My favorite tracks")?.PlaylistId))
+            {
+
+                if (!_playList.ListAll().Any(pl => pl.Name == "My favorite tracks"))
+                {
+                    var lastObj = _playList.ListAll().OrderByDescending(i => i.PlaylistId).FirstOrDefault();
+                    long lastId = lastObj != null ? lastObj.PlaylistId : 1;
+                    _playList.Create(new Models.Playlist { PlaylistId = ++lastId, Name = "My favorite tracks" });
+                    _playList.Save();
+                }
+
+                userPlaylistRepo.Create(new UserPlaylist
+                    {
+                        PlaylistId = _playList.GetByName("My favorite tracks").PlaylistId,
+                        UserId = uid
+                    });
+                userPlaylistRepo.Save();
+
+            }
+
+            playLists =  _playList.ListAllForUserId(uid.ToString());
+        }
+
+    }
 
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
+    }
+
+    private async Task<string> GetUserId()
+    {
+        var user = (await authenticationState).User;
+        var userId = user.FindFirst(u => u.Type.Contains(ClaimTypes.NameIdentifier))?.Value;
+        return userId;
     }
 }

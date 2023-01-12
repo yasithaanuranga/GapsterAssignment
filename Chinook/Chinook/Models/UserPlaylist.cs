@@ -6,4 +6,7 @@ public class UserPlaylist
     public long PlaylistId { get; set; }
     public ChinookUser User { get; set; }
     public Playlist Playlist { get; set; }
+
+    
+
 }

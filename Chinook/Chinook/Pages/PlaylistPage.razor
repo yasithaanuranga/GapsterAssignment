@@ -5,8 +5,15 @@
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims;
 
-<h1>Playlist <strong>@Playlist.Name</strong></h1>
-
+<h1>
+    Playlist <strong>@Playlist.Name</strong>
+    <a href="#" class="m-1" title="Rename Play List" @onclick="@(()=>OpenPlaylistRename())" @onclick:preventDefault>
+        <i class=" bi bi-pencil-square"></i>
+    </a>
+    <a href="#" class="m-1" title="Delete PlayList" @onclick="@(()=>DeletePlaylist())" @onclick:preventDefault>
+        <i class="bi bi-trash"></i>
+    </a>
+</h1>
 @if (!string.IsNullOrWhiteSpace(InfoMessage))
 {
     <div class="alert alert-info fade show">
@@ -21,7 +28,7 @@
 
 @if (Playlist == null)
 {
-     <Loading />
+    <Loading />
 }
 else
 {
@@ -30,7 +37,7 @@ else
             <tr>
                 <th>Track</th>
                 <th></th>
-        </tr>
+            </tr>
         </thead>
         <tbody>
             @foreach (var track in Playlist.Tracks)
@@ -60,15 +67,44 @@ else
     </table>
 }
 
+
+
+<Modal @ref="PlaylistDialog">
+    <Title>
+        Rename playlist
+    </Title>
+    <Body>
+
+
+
+        <div class="form-group mb-2">
+            <label for="NewPlaylist">New Playlist Name</label>
+            <input type="text" id="NewPlaylist" class="form-control" placeholder="New name for the  playlist" @bind-value="NewName">
+        </div>
+    </Body>
+    <Footer>
+        <button class="btn btn-success" @onclick="RenamePaylist">Save</button>
+    </Footer>
+</Modal>
+
+
+
+
+
 @code {
     [Parameter] public long PlaylistId { get; set; }
     [Inject] IDbContextFactory<ChinookContext> DbFactory { get; set; }
     [CascadingParameter] private Task<AuthenticationState> authenticationState { get; set; }
+    [Inject] Chinook.Repository.IplayListRepo playListRepo { get; set; }
+    [Inject] Chinook.Repository.IUserPlaylistRepo userPlaylistRepo { get; set; }
+    [Inject] private Chinook.Repository.ITrackRepo trackRepo { get; set; }
 
     private Chinook.ClientModels.Playlist Playlist;
     private string CurrentUserId;
     private string InfoMessage;
+    private Modal PlaylistDialog { get; set; }
 
+    private string? NewName;
     protected override async Task OnInitializedAsync()
     {
         CurrentUserId = await GetUserId();
@@ -76,22 +112,9 @@ else
         await InvokeAsync(StateHasChanged);
         var DbContext = await DbFactory.CreateDbContextAsync();
 
-        Playlist = DbContext.Playlists
-            .Include(a => a.Tracks).ThenInclude(a => a.Album).ThenInclude(a => a.Artist)
-            .Where(p => p.PlaylistId == PlaylistId)
-            .Select(p => new ClientModels.Playlist()
-                {
-                    Name = p.Name,
-                    Tracks = p.Tracks.Select(t => new ClientModels.PlaylistTrack()
-                    {
-                        AlbumTitle = t.Album.Title,
-                        ArtistName = t.Album.Artist.Name,
-                        TrackId = t.TrackId,
-                        TrackName = t.Name,
-                        IsFavorite = t.Playlists.Where(p => p.UserPlaylists.Any(up => up.UserId == CurrentUserId && up.Playlist.Name == "Favorites")).Any()
-                    }).ToList()
-                })
-            .FirstOrDefault();
+        Playlist = playListRepo.GetWithOtherDataForPlaylistId(PlaylistId, CurrentUserId);
+
+
     }
 
     private async Task<string> GetUserId()
@@ -116,7 +139,15 @@ else
     private void RemoveTrack(long trackId)
     {
         CloseInfoMessage();
+        var t = trackRepo.Get(trackId);
+        var p = playListRepo.Get(PlaylistId);
+        t.Playlists.Remove(p);
+        p.Tracks.Remove(t);
 
+        trackRepo.Update(t);
+        playListRepo.Update(p);
+        trackRepo.Save();
+        playListRepo.Save();
     }
 
     private void CloseInfoMessage()
@@ -124,4 +155,41 @@ else
         InfoMessage = "";
     }
 
+
+    private void RenamePaylist()
+    {
+
+
+        if (!String.IsNullOrEmpty(NewName))
+        {
+            var pl = playListRepo.Get(PlaylistId);
+            pl.Name = NewName;
+
+            playListRepo.Update(pl);
+            playListRepo.Save();
+            PlaylistDialog.Close();
+            InfoMessage = "Name Updated";
+            Playlist = playListRepo.GetWithOtherDataForPlaylistId(PlaylistId, CurrentUserId);
+        }
+
+        else
+        {
+            InfoMessage = "Invalid Name";
+        }
+    }
+
+    private void DeletePlaylist()
+    {
+        var pl = playListRepo.Get(PlaylistId);
+        playListRepo.Delete(pl);
+        playListRepo.Save();
+    }
+
+    private void OpenPlaylistRename()
+    {
+        NewName = Playlist.Name;
+        CloseInfoMessage();
+
+        PlaylistDialog.Open();
+    }
 }

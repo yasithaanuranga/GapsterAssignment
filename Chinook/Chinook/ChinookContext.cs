@@ -30,6 +30,7 @@ public partial class ChinookContext : IdentityDbContext<ChinookUser>
     public virtual DbSet<Track> Tracks { get; set; } = null!;
     public virtual DbSet<UserPlaylist> UserPlaylists { get; set; } = null!;
 
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
@@ -285,10 +286,18 @@ public partial class ChinookContext : IdentityDbContext<ChinookUser>
                 .HasForeignKey(up => up.PlaylistId);
         });
 
+
+
+
+
         OnModelCreatingPartial(modelBuilder);
 
         base.OnModelCreating(modelBuilder);
     }
+
+
+
+
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }

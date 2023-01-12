@@ -3,12 +3,28 @@
 
 @using Chinook.Models
 @using Microsoft.EntityFrameworkCore
+@using Chinook.Repository
 
 <PageTitle>Index</PageTitle>
 
 <h1>Artists</h1>
 
-@if (Artists == null)
+
+
+
+<div class="bs-example ">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12 bg-light text-right">
+                <InputText class="form-control-sm " id="name" @bind-Value="SearchText" />
+                <button class="bi bi-search btn btn-primary btn-sm" @onclick="(()=>HandleSearch())">Search</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    @if (Artists == null)
 {
     <Loading />
 }
@@ -35,24 +51,30 @@ else
 
 @code {
     private List<Artist> Artists;
+    private string? SearchText;
+    private EditContext? editContext;
     [Inject] IDbContextFactory<ChinookContext> DbFactory { get; set; }
+    [Inject] IArtistRepo artistRepo { get; set; }
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnInitializedAsync()
+    {
         await InvokeAsync(StateHasChanged);
-        Artists = await GetArtists();
+        Artists = artistRepo.ListAll().ToList();
     }
 
-    public async Task<List<Artist>> GetArtists()
-    {   
-        var dbContext = await DbFactory.CreateDbContextAsync();
-        var users = dbContext.Users.Include(a => a.UserPlaylists).ToList();
-        
-        return dbContext.Artists.ToList();
-    }
+
 
     public async Task<List<Album>> GetAlbumsForArtist(int artistId)
     {
         var dbContext = await DbFactory.CreateDbContextAsync();
         return dbContext.Albums.Where(a => a.ArtistId == artistId).ToList();
+    }
+    private void HandleSearch()
+    {
+        if (String.IsNullOrEmpty(SearchText))
+            Artists = artistRepo.ListAll().ToList();
+        else
+            Artists = artistRepo.SearchByName(SearchText).ToList();
+        // Process the form
     }
 }

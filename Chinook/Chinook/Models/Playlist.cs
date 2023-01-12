@@ -15,6 +15,6 @@ namespace Chinook.Models
 
         public virtual ICollection<Track> Tracks { get; set; }
         public virtual ICollection<UserPlaylist> UserPlaylists { get; set; }
-
+      //  public virtual ICollection<PlaylistTrack> PlaylistTracks { get; set; }
     }
 }
